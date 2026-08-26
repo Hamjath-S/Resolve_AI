@@ -1,7 +1,20 @@
+# ==================================================
+# RESOLVEAI FASTAPI BACKEND
+# ==================================================
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from Backend.ai_analyzer import analyze_with_ai
+
+from Backend.agent import run_agent
+
+from Backend.database import (
+    create_database,
+    save_incident,
+    get_incident,
+    update_incident_status,
+    get_all_incidents
+)
 
 from datetime import datetime, timezone, timedelta
 
@@ -23,21 +36,25 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
+
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
+
     allow_credentials=True,
+
     allow_methods=["*"],
+
     allow_headers=["*"],
 )
 
 
 # ==================================================
-# TEMPORARY TICKET STORAGE
+# INITIALIZE DATABASE
 # ==================================================
 
-tickets = {}
+create_database()
 
 
 # ==================================================
@@ -45,7 +62,9 @@ tickets = {}
 # ==================================================
 
 class Incident(BaseModel):
+
     title: str
+
     description: str
 
 
@@ -55,6 +74,7 @@ class Incident(BaseModel):
 
 @app.get("/")
 def root():
+
     return {
         "message": "ResolveAI API is running",
         "status": "online"
@@ -67,6 +87,7 @@ def root():
 
 @app.get("/health")
 def health_check():
+
     return {
         "status": "healthy"
     }
@@ -92,343 +113,815 @@ def generate_ticket_id():
 
 def get_current_status(ticket):
 
-    current_status = ticket.get("status", "Open")
+    current_status = ticket.get(
+        "status",
+        "Open"
+    )
+
 
     # --------------------------------------------------
     # CLOSED TICKETS MUST ALWAYS STAY CLOSED
     # --------------------------------------------------
 
     if current_status == "Closed":
+
         return "Closed"
 
 
     # --------------------------------------------------
-    # GET TICKET CREATION TIME
+    # GET CREATION TIME
     # --------------------------------------------------
 
-    created_at = ticket["created_at"]
-
-    now = datetime.now(timezone.utc)
-
-    age = now - created_at
+    created_at = ticket.get(
+        "created_at"
+    )
 
 
-    # --------------------------------------------------
-    # ONE-HOUR RULE
-    # --------------------------------------------------
+    if not created_at:
 
-    if age >= timedelta(seconds=30):
+        return "Open"
+
+
+    try:
+
+        # --------------------------------------------------
+        # CONVERT STORED STRING TO DATETIME
+        # --------------------------------------------------
+
+        created_time = datetime.fromisoformat(
+            created_at
+        )
+
+
+        # --------------------------------------------------
+        # MAKE DATETIME TIMEZONE AWARE
+        # --------------------------------------------------
+
+        if created_time.tzinfo is None:
+
+            created_time = created_time.replace(
+                tzinfo=timezone.utc
+            )
+
+
+        # --------------------------------------------------
+        # CURRENT UTC TIME
+        # --------------------------------------------------
+
+        now = datetime.now(
+            timezone.utc
+        )
+
+
+        # --------------------------------------------------
+        # CALCULATE TICKET AGE
+        # --------------------------------------------------
+
+        age = now - created_time
+
+
+    except Exception:
+
+        return current_status
+
+
+    # ==================================================
+    # 30-SECOND DEMO RULE
+    # ==================================================
+
+    if age >= timedelta(
+        seconds=30
+    ):
 
         return "In Progress"
 
 
-    # --------------------------------------------------
-    # LESS THAN ONE HOUR
-    # --------------------------------------------------
+    # ==================================================
+    # LESS THAN 30 SECONDS
+    # ==================================================
 
     return "Open"
 
 
 # ==================================================
-# AI INCIDENT ANALYSIS
+# AI AUTONOMOUS INCIDENT ANALYSIS
 # ==================================================
 
 @app.post("/analyze")
-async def analyze_incident(incident: Incident):
+async def analyze_incident(
+    incident: Incident
+):
 
-    # --------------------------------------------------
-    # GENERATE TICKET AUTOMATICALLY
-    # --------------------------------------------------
+    # ==================================================
+    # GENERATE TICKET ID
+    # ==================================================
 
     ticket_id = generate_ticket_id()
 
 
-    # --------------------------------------------------
+    # ==================================================
     # RECORD CREATION TIME
-    # --------------------------------------------------
+    # ==================================================
 
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(
+        timezone.utc
+    )
 
 
-    # --------------------------------------------------
-    # SEND ONLY USER ISSUE TO GEMINI
-    # --------------------------------------------------
+    # ==================================================
+    # INCIDENT DATA
+    # ==================================================
 
     incident_data = {
-        "title": incident.title,
-        "description": incident.description
+
+        "ticket_id":
+            ticket_id,
+
+        "title":
+            incident.title.strip(),
+
+        "description":
+            incident.description.strip()
+
     }
+
+
+    # ==================================================
+    # VALIDATE INPUT
+    # ==================================================
+
+    if not incident_data["title"]:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Incident title is required."
+        )
+
+
+    if not incident_data["description"]:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Incident description is required."
+        )
 
 
     try:
 
         # ==================================================
-        # AI ANALYSIS
+        # START AUTONOMOUS AGENT
         # ==================================================
 
-        ai_result = analyze_with_ai(incident_data)
+        print("\n")
+        print("==========================================")
+        print("RESOLVEAI → AUTONOMOUS INCIDENT AGENT")
+        print("==========================================")
 
+        print(
+            f"Ticket ID: {ticket_id}"
+        )
 
-        # ==================================================
-        # CREATE TICKET
-        # ==================================================
+        print(
+            f"Title: {incident.title}"
+        )
 
-        tickets[ticket_id] = {
+        print(
+            "Starting autonomous incident analysis..."
+        )
 
-            "created_at": created_at,
-
-            "status": "Open",
-
-            "category": ai_result.get("category"),
-
-            "priority": ai_result.get("priority"),
-
-            "root_cause": ai_result.get("root_cause"),
-
-            "resolution": ai_result.get("resolution"),
-
-            "title": incident.title,
-
-            "description": incident.description
-        }
+        print(
+            "==========================================\n"
+        )
 
 
         # ==================================================
-        # RETURN RESULT TO FRONTEND
+        # RUN AUTONOMOUS AGENT
+        # ==================================================
+
+        agent_result = run_agent(
+
+            incident=incident_data,
+
+            top_k=3
+
+        )
+
+
+        # ==================================================
+        # GET FINAL AI RESULT
+        # ==================================================
+
+        ai_result = agent_result.get(
+            "ai_result",
+            {}
+        )
+
+
+        # ==================================================
+        # GET AUTONOMOUS EXECUTION TRACE
+        # ==================================================
+
+        execution_trace = agent_result.get(
+            "execution_trace",
+            []
+        )
+
+
+        # ==================================================
+        # GET RETRIEVED EVIDENCE
+        # ==================================================
+
+        retrieved_knowledge = agent_result.get(
+            "retrieved_knowledge",
+            []
+        )
+
+
+        similar_incidents = agent_result.get(
+            "similar_incidents",
+            []
+        )
+
+
+        ticket_results = agent_result.get(
+            "ticket_results",
+            []
+        )
+
+
+        # ==================================================
+        # EXTRACT CATEGORY
+        # ==================================================
+
+        category = ai_result.get(
+            "category",
+            "General IT Incident"
+        )
+
+
+        # ==================================================
+        # EXTRACT PRIORITY
+        # ==================================================
+
+        priority = ai_result.get(
+            "priority",
+            "Medium"
+        )
+
+
+        # ==================================================
+        # EXTRACT ROOT CAUSE
+        # ==================================================
+
+        root_cause = ai_result.get(
+            "root_cause",
+            "Unable to determine root cause."
+        )
+
+
+        # ==================================================
+        # EXTRACT RESOLUTION
+        # ==================================================
+
+        resolution = ai_result.get(
+            "resolution",
+            "Please investigate the incident."
+        )
+
+
+        # ==================================================
+        # INITIAL STATUS
+        # ==================================================
+
+        # New incidents should ALWAYS start as Open.
+
+        status = "Open"
+
+
+        # ==================================================
+        # AGENT METADATA
+        # ==================================================
+
+        tools_used = agent_result.get(
+            "tools_used",
+            []
+        )
+
+
+        agent_steps = agent_result.get(
+            "agent_steps",
+            0
+        )
+
+
+        agent_status = agent_result.get(
+            "agent_status",
+            "completed"
+        )
+
+
+        # ==================================================
+        # SAVE INCIDENT TO DATABASE
+        # ==================================================
+
+        save_incident(
+
+            ticket_id=ticket_id,
+
+            title=incident.title.strip(),
+
+            description=incident.description.strip(),
+
+            priority=priority,
+
+            status=status,
+
+            category=category,
+
+            root_cause=root_cause,
+
+            resolution=resolution,
+
+            created_at=created_at.isoformat()
+
+        )
+
+
+        # ==================================================
+        # LOG FINAL RESULT
+        # ==================================================
+
+        print("\n")
+        print("==========================================")
+        print("AUTONOMOUS AGENT RESULT")
+        print("==========================================")
+
+        print(
+            f"Ticket ID: {ticket_id}"
+        )
+
+        print(
+            f"Category: {category}"
+        )
+
+        print(
+            f"Priority: {priority}"
+        )
+
+        print(
+            f"Agent status: {agent_status}"
+        )
+
+        print(
+            f"Agent steps: {agent_steps}"
+        )
+
+        print(
+            f"Tools used: {tools_used}"
+        )
+
+        print(
+            f"Execution events: "
+            f"{len(execution_trace)}"
+        )
+
+        print(
+            "==========================================\n"
+        )
+
+
+        # ==================================================
+        # RETURN COMPLETE RESULT TO FRONTEND
         # ==================================================
 
         return {
 
-            "ticket_id": ticket_id,
+            # ----------------------------------------------
+            # INCIDENT INFORMATION
+            # ----------------------------------------------
 
-            "category": ai_result.get("category"),
+            "ticket_id":
+                ticket_id,
 
-            "priority": ai_result.get("priority"),
+            "title":
+                incident.title.strip(),
 
-            "root_cause": ai_result.get("root_cause"),
+            "description":
+                incident.description.strip(),
 
-            "resolution": ai_result.get("resolution"),
 
-            "status": "Open",
+            # ----------------------------------------------
+            # AI ANALYSIS
+            # ----------------------------------------------
 
-            "created_at": created_at.isoformat()
+            "category":
+                category,
+
+            "priority":
+                priority,
+
+            "root_cause":
+                root_cause,
+
+            "resolution":
+                resolution,
+
+
+            # ----------------------------------------------
+            # TICKET STATUS
+            # ----------------------------------------------
+
+            "status":
+                status,
+
+            "created_at":
+                created_at.isoformat(),
+
+
+            # ----------------------------------------------
+            # AUTONOMOUS AGENT INFORMATION
+            # ----------------------------------------------
+
+            "agent_status":
+                agent_status,
+
+            "agent_steps":
+                agent_steps,
+
+            "tools_used":
+                tools_used,
+
+
+            # ----------------------------------------------
+            # REAL EXECUTION TRACE
+            # ----------------------------------------------
+
+            "execution_trace":
+                execution_trace,
+
+
+            # ----------------------------------------------
+            # RETRIEVED EVIDENCE
+            # ----------------------------------------------
+
+            "retrieved_knowledge":
+                retrieved_knowledge,
+
+            "similar_incidents":
+                similar_incidents,
+
+            "ticket_results":
+                ticket_results
+
         }
 
 
     except Exception as e:
 
-        error_message = str(e).lower()
+        # ==================================================
+        # ERROR LOG
+        # ==================================================
+
+        print("\n")
+        print("==========================================")
+        print("RESOLVEAI AUTONOMOUS AGENT ERROR")
+        print("==========================================")
+
+        print(
+            "Error type:",
+            type(e).__name__
+        )
+
+        print(
+            "Error message:",
+            str(e)
+        )
+
+        print(
+            "==========================================\n"
+        )
 
 
         # ==================================================
-        # GEMINI QUOTA / RATE LIMIT
-        # ==================================================
-
-        if (
-            "429" in error_message
-            or "quota" in error_message
-            or "rate limit" in error_message
-        ):
-
-            tickets[ticket_id] = {
-
-                "created_at": created_at,
-
-                "status": "Open",
-
-                "category": "General IT Incident",
-
-                "priority": "Medium",
-
-                "root_cause": (
-                    "AI analysis is temporarily unavailable "
-                    "because the Gemini API quota has been exceeded."
-                ),
-
-                "resolution": (
-                    "Please retry the AI analysis after the "
-                    "Gemini API quota resets."
-                ),
-
-                "title": incident.title,
-
-                "description": incident.description
-            }
-
-
-            return {
-
-                "ticket_id": ticket_id,
-
-                "category": "General IT Incident",
-
-                "priority": "Medium",
-
-                "root_cause": (
-                    "AI analysis is temporarily unavailable "
-                    "because the Gemini API quota has been exceeded."
-                ),
-
-                "resolution": (
-                    "Please retry the AI analysis after the "
-                    "Gemini API quota resets."
-                ),
-
-                "status": "Open",
-
-                "created_at": created_at.isoformat()
-            }
-
-
-        # ==================================================
-        # OTHER AI ERRORS
+        # RETURN ERROR TO FRONTEND
         # ==================================================
 
         raise HTTPException(
+
             status_code=500,
-            detail=f"AI analysis failed: {str(e)}"
+
+            detail=(
+                "Autonomous incident analysis failed: "
+                f"{str(e)}"
+            )
+
         )
 
 
 # ==================================================
-# USER CONFIRMS ISSUE IS RESOLVED
+# CLOSE / RESOLVE TICKET
 # ==================================================
 
 @app.post("/tickets/{ticket_id}/resolve")
-def resolve_ticket(ticket_id: str):
+def resolve_ticket(
+    ticket_id: str
+):
 
-    if ticket_id not in tickets:
+    # ==================================================
+    # FIND TICKET
+    # ==================================================
+
+    ticket = get_incident(
+        ticket_id
+    )
+
+
+    if ticket is None:
 
         raise HTTPException(
+
             status_code=404,
+
             detail="Ticket not found"
+
         )
 
 
-    ticket = tickets[ticket_id]
+    # ==================================================
+    # CHECK IF ALREADY CLOSED
+    # ==================================================
+
+    if ticket["status"] == "Closed":
+
+        return {
+
+            "ticket_id":
+                ticket_id,
+
+            "status":
+                "Closed",
+
+            "message":
+                "Ticket is already closed."
+
+        }
 
 
-    # --------------------------------------------------
-    # EXPLICIT USER CONFIRMATION
-    # --------------------------------------------------
+    # ==================================================
+    # CLOSE TICKET
+    # ==================================================
 
-    ticket["status"] = "Closed"
+    resolved_at = datetime.now(
+        timezone.utc
+    ).isoformat()
 
-    ticket["resolved_at"] = datetime.now(timezone.utc)
 
+    update_incident_status(
+
+        ticket_id=ticket_id,
+
+        status="Closed",
+
+        resolved_at=resolved_at
+
+    )
+
+
+    # ==================================================
+    # RESPONSE
+    # ==================================================
 
     return {
 
-        "ticket_id": ticket_id,
+        "ticket_id":
+            ticket_id,
 
-        "status": "Closed",
+        "status":
+            "Closed",
+
+        "resolved_at":
+            resolved_at,
 
         "message": (
             "Issue confirmed resolved. "
             "Ticket closed successfully."
         )
+
     }
 
 
 # ==================================================
-# USER SAYS ISSUE IS NOT RESOLVED
+# KEEP TICKET OPEN
 # ==================================================
 
 @app.post("/tickets/{ticket_id}/keep-open")
-def keep_ticket_open(ticket_id: str):
+def keep_ticket_open(
+    ticket_id: str
+):
 
-    if ticket_id not in tickets:
+    # ==================================================
+    # FIND TICKET
+    # ==================================================
+
+    ticket = get_incident(
+        ticket_id
+    )
+
+
+    if ticket is None:
 
         raise HTTPException(
+
             status_code=404,
+
             detail="Ticket not found"
+
         )
 
 
-    ticket = tickets[ticket_id]
+    # ==================================================
+    # KEEP TICKET OPEN
+    # ==================================================
+
+    update_incident_status(
+
+        ticket_id=ticket_id,
+
+        status="Open",
+
+        resolved_at=None
+
+    )
 
 
-    # --------------------------------------------------
-    # USER SAYS ISSUE IS STILL UNRESOLVED
-    # --------------------------------------------------
-
-    ticket["status"] = "Open"
-
+    # ==================================================
+    # RESPONSE
+    # ==================================================
 
     return {
 
-        "ticket_id": ticket_id,
+        "ticket_id":
+            ticket_id,
 
-        "status": "Open",
+        "status":
+            "Open",
 
         "message": (
             "Issue is still unresolved. "
             "Ticket remains open."
         )
+
     }
 
 
 # ==================================================
-# GET CURRENT TICKET STATUS
+# GET SINGLE TICKET
 # ==================================================
 
 @app.get("/tickets/{ticket_id}")
-def get_ticket(ticket_id: str):
+def get_ticket(
+    ticket_id: str
+):
 
-    if ticket_id not in tickets:
+    # ==================================================
+    # FIND TICKET
+    # ==================================================
+
+    ticket = get_incident(
+        ticket_id
+    )
+
+
+    if ticket is None:
 
         raise HTTPException(
+
             status_code=404,
+
             detail="Ticket not found"
+
         )
 
 
-    ticket = tickets[ticket_id]
-
-
-    # --------------------------------------------------
+    # ==================================================
     # CALCULATE CURRENT STATUS
-    # --------------------------------------------------
+    # ==================================================
 
-    current_status = get_current_status(ticket)
+    current_status = get_current_status(
+        ticket
+    )
 
 
-    # --------------------------------------------------
-    # UPDATE STATUS
-    # --------------------------------------------------
+    # ==================================================
+    # UPDATE DATABASE IF STATUS CHANGED
+    # ==================================================
 
-    if ticket["status"] != "Closed":
+    if ticket["status"] != current_status:
+
+        update_incident_status(
+
+            ticket_id=ticket_id,
+
+            status=current_status,
+
+            resolved_at=ticket.get(
+                "resolved_at"
+            )
+
+        )
+
 
         ticket["status"] = current_status
 
 
-    # --------------------------------------------------
+    # ==================================================
     # RETURN COMPLETE TICKET
-    # --------------------------------------------------
+    # ==================================================
 
     return {
 
-        "ticket_id": ticket_id,
+        "ticket_id":
+            ticket["ticket_id"],
 
-        "title": ticket.get("title"),
+        "title":
+            ticket["title"],
 
-        "description": ticket.get("description"),
+        "description":
+            ticket["description"],
 
-        "category": ticket.get("category"),
+        "category":
+            ticket["category"],
 
-        "priority": ticket.get("priority"),
+        "priority":
+            ticket["priority"],
 
-        "root_cause": ticket.get("root_cause"),
+        "root_cause":
+            ticket["root_cause"],
 
-        "resolution": ticket.get("resolution"),
+        "resolution":
+            ticket["resolution"],
 
-        "status": ticket["status"],
+        "status":
+            ticket["status"],
 
-        "created_at": ticket["created_at"].isoformat(),
+        "created_at":
+            ticket["created_at"],
 
-        "resolved_at": (
-            ticket["resolved_at"].isoformat()
-            if ticket.get("resolved_at")
-            else None
+        "resolved_at":
+            ticket["resolved_at"]
+
+    }
+
+
+# ==================================================
+# GET ALL TICKETS
+# ==================================================
+
+@app.get("/tickets")
+def get_tickets():
+
+    incidents = get_all_incidents()
+
+
+    # ==================================================
+    # UPDATE AUTOMATIC STATUSES
+    # ==================================================
+
+    for ticket in incidents:
+
+        current_status = get_current_status(
+            ticket
         )
+
+
+        if ticket["status"] != current_status:
+
+            update_incident_status(
+
+                ticket_id=ticket["ticket_id"],
+
+                status=current_status,
+
+                resolved_at=ticket.get(
+                    "resolved_at"
+                )
+
+            )
+
+
+            ticket["status"] = current_status
+
+
+    # ==================================================
+    # RETURN ALL TICKETS
+    # ==================================================
+
+    return {
+
+        "count":
+            len(incidents),
+
+        "tickets":
+            incidents
+
     }

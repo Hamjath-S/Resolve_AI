@@ -10,26 +10,31 @@ const API_BASE_URL =
 const ANALYZE_ENDPOINT_PATH = '/analyze'
 
 
-// --------------------------------------------------
-// API Error
-// --------------------------------------------------
+// ==================================================
+// API ERROR
+// ==================================================
 
 export class ApiError extends Error {
   constructor(message, type = 'api_error', status = null) {
     super(message)
+
     this.name = 'ApiError'
+
     this.type = type
+
     this.status = status
   }
 }
 
 
-// --------------------------------------------------
-// Error Response Parser
-// --------------------------------------------------
+// ==================================================
+// ERROR RESPONSE PARSER
+// ==================================================
 
 async function parseErrorBody(response) {
+
   try {
+
     const data = await response.json()
 
     return (
@@ -37,30 +42,42 @@ async function parseErrorBody(response) {
       data.message ||
       JSON.stringify(data)
     )
+
   } catch {
-    return response.statusText || 'Unknown error'
+
+    return (
+      response.statusText ||
+      'Unknown error'
+    )
+
   }
 }
 
 
-// --------------------------------------------------
-// Backend Health Check
-// --------------------------------------------------
+// ==================================================
+// BACKEND HEALTH CHECK
+// ==================================================
 
 export async function checkBackendHealth() {
+
   try {
+
     const response = await fetch(
       `${API_BASE_URL}/health`,
       {
         method: 'GET',
-        signal: AbortSignal.timeout(5000),
+
+        signal:
+          AbortSignal.timeout(5000),
       }
     )
 
     return response.ok
 
   } catch {
+
     return false
+
   }
 }
 
@@ -72,23 +89,33 @@ export async function checkBackendHealth() {
 /**
  * POST /analyze
  *
- * Sends ONLY:
+ * Sends:
  *
  * {
  *   title,
  *   description
  * }
  *
- * Backend automatically generates:
+ * Backend returns:
+ *
  * - Ticket ID
  * - Category
  * - Priority
  * - Root Cause
  * - Resolution
- * - Initial Status
+ * - Status
+ *
+ * AND:
+ *
+ * - Agent status
+ * - Agent steps
+ * - Tools used
+ * - Execution trace
  */
 
-export async function analyzeIncident(incident) {
+export async function analyzeIncident(
+  incident
+) {
 
   let response
 
@@ -100,15 +127,22 @@ export async function analyzeIncident(incident) {
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':
+            'application/json',
         },
 
         body: JSON.stringify({
-          title: incident.title,
-          description: incident.description,
+
+          title:
+            incident.title,
+
+          description:
+            incident.description,
+
         }),
 
-        signal: AbortSignal.timeout(30000),
+        signal:
+          AbortSignal.timeout(60000),
       }
     )
 
@@ -120,53 +154,133 @@ export async function analyzeIncident(incident) {
     ) {
 
       throw new ApiError(
-        'The backend did not respond in time. It may be busy or unreachable.',
+
+        'The backend did not respond in time. The AI agent may still be processing the incident.',
+
         'network'
+
       )
+
     }
 
     throw new ApiError(
+
       `Could not reach the ResolveAI backend at ${API_BASE_URL}. Is it running?`,
+
       'backend_unavailable'
+
     )
+
   }
 
 
-  // --------------------------------------------------
-  // Endpoint not found
-  // --------------------------------------------------
+  // ==================================================
+  // ENDPOINT NOT FOUND
+  // ==================================================
 
   if (response.status === 404) {
 
     throw new ApiError(
+
       `The backend at ${API_BASE_URL} does not expose ${ANALYZE_ENDPOINT_PATH}.`,
+
       'not_implemented',
+
       404
+
     )
+
   }
 
 
-  // --------------------------------------------------
-  // Other API errors
-  // --------------------------------------------------
+  // ==================================================
+  // OTHER API ERRORS
+  // ==================================================
 
   if (!response.ok) {
 
-    const message = await parseErrorBody(response)
+    const message =
+      await parseErrorBody(response)
 
     throw new ApiError(
+
       message,
+
       'api_error',
+
       response.status
+
     )
+
   }
 
 
-  // --------------------------------------------------
-  // Successful response
-  // --------------------------------------------------
+  // ==================================================
+  // SUCCESSFUL RESPONSE
+  // ==================================================
 
-  return response.json()
+  const data =
+    await response.json()
+
+
+  // ==================================================
+  // NORMALIZE AGENT TRACE
+  // ==================================================
+
+  /*
+   * The backend returns the actual execution trace
+   * generated by run_agent().
+   *
+   * Example:
+   *
+   * [
+   *   {
+   *     step: 1,
+   *     type: "planner",
+   *     action: "knowledge_search",
+   *     status: "decided"
+   *   },
+   *
+   *   {
+   *     step: 1,
+   *     type: "tool",
+   *     action: "knowledge_search",
+   *     status: "completed"
+   *   }
+   * ]
+   *
+   * If an older backend is running and does not yet
+   * return execution_trace, use an empty array rather
+   * than breaking the frontend.
+   */
+
+  return {
+
+    ...data,
+
+    execution_trace:
+      Array.isArray(
+        data.execution_trace
+      )
+        ? data.execution_trace
+        : [],
+
+    tools_used:
+      Array.isArray(
+        data.tools_used
+      )
+        ? data.tools_used
+        : [],
+
+    agent_steps:
+      data.agent_steps ?? 0,
+
+    agent_status:
+      data.agent_status ||
+      'completed',
+
+  }
+
 }
 
 
@@ -177,37 +291,51 @@ export async function analyzeIncident(incident) {
 /**
  * POST /tickets/{ticket_id}/resolve
  *
- * Called ONLY when the user confirms:
+ * Called when the user confirms:
  *
  * "Yes, Issue Resolved"
  *
  * Backend changes the ticket to CLOSED.
  */
 
-export async function resolveTicket(ticketId) {
+export async function resolveTicket(
+  ticketId
+) {
 
   if (!ticketId) {
+
     throw new ApiError(
+
       'Ticket ID is missing.',
+
       'validation'
+
     )
+
   }
+
 
   let response
 
   try {
 
     response = await fetch(
+
       `${API_BASE_URL}/tickets/${encodeURIComponent(ticketId)}/resolve`,
+
       {
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':
+            'application/json',
         },
 
-        signal: AbortSignal.timeout(10000),
+        signal:
+          AbortSignal.timeout(10000),
+
       }
+
     )
 
   } catch (err) {
@@ -218,31 +346,46 @@ export async function resolveTicket(ticketId) {
     ) {
 
       throw new ApiError(
+
         'The backend did not respond while closing the ticket.',
+
         'network'
+
       )
+
     }
 
     throw new ApiError(
+
       'Could not reach the ResolveAI backend.',
+
       'backend_unavailable'
+
     )
+
   }
 
 
   if (!response.ok) {
 
-    const message = await parseErrorBody(response)
+    const message =
+      await parseErrorBody(response)
 
     throw new ApiError(
+
       message,
+
       'api_error',
+
       response.status
+
     )
+
   }
 
 
   return response.json()
+
 }
 
 
@@ -258,35 +401,46 @@ export async function resolveTicket(ticketId) {
  * "No, Still Having Issue"
  *
  * The ticket remains OPEN.
- *
- * The backend's one-hour rule can later change
- * the status to IN PROGRESS.
  */
 
-export async function keepTicketOpen(ticketId) {
+export async function keepTicketOpen(
+  ticketId
+) {
 
   if (!ticketId) {
+
     throw new ApiError(
+
       'Ticket ID is missing.',
+
       'validation'
+
     )
+
   }
+
 
   let response
 
   try {
 
     response = await fetch(
+
       `${API_BASE_URL}/tickets/${encodeURIComponent(ticketId)}/keep-open`,
+
       {
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':
+            'application/json',
         },
 
-        signal: AbortSignal.timeout(10000),
+        signal:
+          AbortSignal.timeout(10000),
+
       }
+
     )
 
   } catch (err) {
@@ -297,71 +451,119 @@ export async function keepTicketOpen(ticketId) {
     ) {
 
       throw new ApiError(
+
         'The backend did not respond while updating the ticket.',
+
         'network'
+
       )
+
     }
 
     throw new ApiError(
+
       'Could not reach the ResolveAI backend.',
+
       'backend_unavailable'
+
     )
+
   }
 
 
   if (!response.ok) {
 
-    const message = await parseErrorBody(response)
+    const message =
+      await parseErrorBody(response)
 
     throw new ApiError(
+
       message,
+
       'api_error',
+
       response.status
+
     )
+
   }
 
 
   return response.json()
+
 }
 
+
 // ==================================================
-// GET CURRENT TICKET STATUS
+// GET CURRENT TICKET
 // ==================================================
 
-export async function getTicket(ticketId) {
+export async function getTicket(
+  ticketId
+) {
+
   if (!ticketId) {
+
     throw new ApiError(
+
       'Ticket ID is missing.',
+
       'validation'
+
     )
+
   }
+
 
   let response
 
   try {
+
     response = await fetch(
+
       `${API_BASE_URL}/tickets/${encodeURIComponent(ticketId)}`,
+
       {
         method: 'GET',
-        signal: AbortSignal.timeout(10000),
+
+        signal:
+          AbortSignal.timeout(10000),
+
       }
+
     )
-  } catch (err) {
+
+  } catch {
+
     throw new ApiError(
+
       'Could not reach the ResolveAI backend.',
+
       'backend_unavailable'
+
     )
+
   }
+
 
   if (!response.ok) {
-    const message = await parseErrorBody(response)
+
+    const message =
+      await parseErrorBody(response)
 
     throw new ApiError(
+
       message,
+
       'api_error',
+
       response.status
+
     )
+
   }
 
+
   return response.json()
+
 }

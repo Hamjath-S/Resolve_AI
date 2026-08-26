@@ -14,23 +14,33 @@ export default function AnalysisResult({
     resolution,
     status,
     created_at: createdAt,
+
+    // Autonomous agent
+    agent_status: agentStatus,
+    agent_steps: agentSteps,
+    tools_used: toolsUsed = [],
+    execution_trace: executionTrace = [],
+
+    // RAG / evidence
+    retrieved_knowledge: retrievedKnowledge = [],
+    similar_incidents: similarIncidents = [],
   } = result
 
   const [confirmation, setConfirmation] = useState(null)
   const [isUpdating, setIsUpdating] = useState(false)
 
-  // --------------------------------------------------
+  // ==================================================
   // RESET WHEN NEW TICKET IS ANALYZED
-  // --------------------------------------------------
+  // ==================================================
 
   useEffect(() => {
     setConfirmation(null)
     setIsUpdating(false)
   }, [ticketId])
 
-  // --------------------------------------------------
+  // ==================================================
   // RESOLVE TICKET
-  // --------------------------------------------------
+  // ==================================================
 
   async function handleResolved() {
     if (isUpdating || confirmation) return
@@ -47,9 +57,9 @@ export default function AnalysisResult({
     }
   }
 
-  // --------------------------------------------------
+  // ==================================================
   // KEEP TICKET OPEN
-  // --------------------------------------------------
+  // ==================================================
 
   async function handleNotResolved() {
     if (isUpdating || confirmation) return
@@ -66,9 +76,9 @@ export default function AnalysisResult({
     }
   }
 
-  // --------------------------------------------------
+  // ==================================================
   // DISPLAY STATUS
-  // --------------------------------------------------
+  // ==================================================
 
   let displayedStatus = status || 'Open'
 
@@ -80,9 +90,9 @@ export default function AnalysisResult({
     displayedStatus = 'Open'
   }
 
-  // --------------------------------------------------
-  // FORMAT CREATED TIME
-  // --------------------------------------------------
+  // ==================================================
+  // FORMAT DATE
+  // ==================================================
 
   function formatCreatedAt(value) {
     if (!value) return 'Just now'
@@ -92,6 +102,112 @@ export default function AnalysisResult({
     } catch {
       return value
     }
+  }
+
+  // ==================================================
+  // FORMAT ACTION NAME
+  // ==================================================
+
+  function formatAction(action) {
+    if (!action) return 'Unknown action'
+
+    return String(action)
+      .replaceAll('_', ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+
+  // ==================================================
+  // FORMAT EVENT STATUS
+  // ==================================================
+
+  function getEventStatus(event) {
+    switch (event?.status) {
+      case 'completed':
+        return 'Completed'
+
+      case 'failed':
+        return 'Failed'
+
+      case 'skipped':
+        return 'Skipped'
+
+      case 'decided':
+        return 'Decision made'
+
+      case 'running':
+        return 'Running'
+
+      default:
+        return event?.status
+          ? formatAction(event.status)
+          : 'Unknown'
+    }
+  }
+
+  // ==================================================
+  // EVENT ICON
+  // ==================================================
+
+  function getEventIcon(event) {
+    if (event?.status === 'failed') return '×'
+
+    if (event?.status === 'completed') return '✓'
+
+    if (event?.status === 'decided') return '◆'
+
+    if (event?.type === 'ai_analysis') return '✦'
+
+    if (event?.type === 'tool') return '⚙'
+
+    return '•'
+  }
+
+  // ==================================================
+  // EVENT CLASS
+  // ==================================================
+
+  function getEventClass(event) {
+    if (event?.status === 'failed') {
+      return 'failed'
+    }
+
+    if (event?.status === 'completed') {
+      return 'completed'
+    }
+
+    if (event?.status === 'decided') {
+      return 'decision'
+    }
+
+    return 'default'
+  }
+
+  // ==================================================
+  // KNOWLEDGE SOURCE
+  // ==================================================
+
+  function getKnowledgeSource(item, index) {
+    return (
+      item?.source ||
+      item?.metadata?.source ||
+      item?.metadata?.file_name ||
+      item?.metadata?.filename ||
+      `Knowledge ${index + 1}`
+    )
+  }
+
+  // ==================================================
+  // KNOWLEDGE CONTENT
+  // ==================================================
+
+  function getKnowledgeContent(item) {
+    return (
+      item?.content ||
+      item?.text ||
+      item?.chunk ||
+      item?.document ||
+      'No knowledge content available.'
+    )
   }
 
   return (
@@ -113,19 +229,17 @@ export default function AnalysisResult({
           </h3>
 
           <p className="result-subtitle">
-            ResolveAI analyzed the reported incident and generated
-            a recommended troubleshooting path.
+            ResolveAI analyzed the reported incident and
+            generated a recommended troubleshooting path.
           </p>
         </div>
 
         <div className="result-ticket-box">
-
           <span>Ticket</span>
 
           <strong>
             {ticketId || 'Generating...'}
           </strong>
-
         </div>
 
       </div>
@@ -137,10 +251,7 @@ export default function AnalysisResult({
 
       <div className="result-summary-grid">
 
-        {/* CATEGORY */}
-
         <div className="summary-card">
-
           <span className="summary-label">
             CATEGORY
           </span>
@@ -148,14 +259,10 @@ export default function AnalysisResult({
           <strong className="summary-category">
             {category || 'Uncategorized'}
           </strong>
-
         </div>
 
 
-        {/* PRIORITY */}
-
         <div className="summary-card">
-
           <span className="summary-label">
             PRIORITY
           </span>
@@ -167,14 +274,10 @@ export default function AnalysisResult({
               '—'
             )}
           </div>
-
         </div>
 
 
-        {/* STATUS */}
-
         <div className="summary-card">
-
           <span className="summary-label">
             STATUS
           </span>
@@ -182,14 +285,10 @@ export default function AnalysisResult({
           <div>
             <StatusBadge value={displayedStatus} />
           </div>
-
         </div>
 
 
-        {/* CREATED */}
-
         <div className="summary-card">
-
           <span className="summary-label">
             CREATED
           </span>
@@ -197,8 +296,375 @@ export default function AnalysisResult({
           <strong className="summary-time">
             {formatCreatedAt(createdAt)}
           </strong>
+        </div>
+
+      </div>
+
+
+      {/* ==================================================
+          AUTONOMOUS AGENT
+          ================================================== */}
+
+      <div className="result-section">
+
+        <div className="result-section-header">
+
+          <div className="result-section-number">
+            AI
+          </div>
+
+          <div>
+            <span className="result-section-label">
+              AUTONOMOUS AGENT
+            </span>
+
+            <h4>
+              Agent execution trace
+            </h4>
+          </div>
 
         </div>
+
+
+        {/* AGENT OVERVIEW */}
+
+        <div className="agent-overview">
+
+          <div className="agent-stat">
+            <span>AGENT STATUS</span>
+
+            <strong>
+              {agentStatus
+                ? formatAction(agentStatus)
+                : 'Completed'}
+            </strong>
+          </div>
+
+
+          <div className="agent-stat">
+            <span>EXECUTION EVENTS</span>
+
+            <strong>
+              {executionTrace.length}
+            </strong>
+          </div>
+
+
+          <div className="agent-stat">
+            <span>TOOLS USED</span>
+
+            <strong>
+              {[...new Set(toolsUsed)].length}
+            </strong>
+          </div>
+
+        </div>
+
+
+        {/* ==================================================
+            TOOLS USED
+            ================================================== */}
+
+        {toolsUsed.length > 0 && (
+
+          <div className="agent-tools">
+
+            <span className="evidence-label">
+              TOOLS USED
+            </span>
+
+            <div className="tool-list">
+
+              {[...new Set(toolsUsed)].map((tool) => (
+
+                <span
+                  className="tool-chip"
+                  key={tool}
+                >
+                  {formatAction(tool)}
+                </span>
+
+              ))}
+
+            </div>
+
+          </div>
+
+        )}
+
+
+        {/* ==================================================
+            EXECUTION TRACE
+            ================================================== */}
+
+        {executionTrace.length > 0 ? (
+
+          <div className="execution-trace">
+
+            {executionTrace.map((event, index) => (
+
+              <div
+                className={`execution-event execution-event-${getEventClass(event)}`}
+                key={`${event?.step ?? 'step'}-${event?.action ?? 'action'}-${event?.status ?? 'status'}-${index}`}
+              >
+
+                {/* TIMELINE */}
+
+                <div className="execution-event-marker">
+
+                  <div className="execution-event-icon">
+                    {getEventIcon(event)}
+                  </div>
+
+                  {index < executionTrace.length - 1 && (
+                    <div className="execution-event-line" />
+                  )}
+
+                </div>
+
+
+                {/* EVENT CONTENT */}
+
+                <div className="execution-event-content">
+
+                  <div className="execution-event-top">
+
+                    <div className="execution-event-title">
+
+                      <strong>
+                        {formatAction(event?.action)}
+                      </strong>
+
+                      {event?.type && (
+                        <span className="execution-event-type">
+                          {formatAction(event.type)}
+                        </span>
+                      )}
+
+                    </div>
+
+                    <span className="execution-event-status">
+                      {getEventStatus(event)}
+                    </span>
+
+                  </div>
+
+
+                  {event?.reason && (
+                    <p className="execution-event-reason">
+                      {event.reason}
+                    </p>
+                  )}
+
+
+                  {event?.result_count !== undefined && (
+                    <div className="execution-event-result">
+                      Results retrieved:
+                      <strong>
+                        {event.result_count}
+                      </strong>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        ) : (
+
+          <div className="execution-empty">
+            No execution trace was returned by the autonomous agent.
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* ==================================================
+          RAG KNOWLEDGE
+          ================================================== */}
+
+      <div className="result-section">
+
+        <div className="result-section-header">
+
+          <div className="result-section-number">
+            03
+          </div>
+
+          <div>
+            <span className="result-section-label">
+              RAG KNOWLEDGE
+            </span>
+
+            <h4>
+              Retrieved knowledge
+            </h4>
+          </div>
+
+        </div>
+
+
+        {retrievedKnowledge.length > 0 ? (
+
+          <div className="knowledge-results">
+
+            {retrievedKnowledge.map((item, index) => (
+
+              <div
+                className="knowledge-card"
+                key={`${getKnowledgeSource(item, index)}-${index}`}
+              >
+
+                <div className="knowledge-card-header">
+
+                  <div className="knowledge-title">
+
+                    <span className="knowledge-number">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+
+                    <strong>
+                      Knowledge #{index + 1}
+                    </strong>
+
+                  </div>
+
+
+                  <span className="knowledge-source">
+                    {getKnowledgeSource(item, index)}
+                  </span>
+
+                </div>
+
+
+                <div className="knowledge-content">
+
+                  {getKnowledgeContent(item)}
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        ) : (
+
+          <div className="evidence-empty">
+            No RAG knowledge was retrieved for this incident.
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* ==================================================
+          SIMILAR HISTORICAL INCIDENTS
+          ================================================== */}
+
+      <div className="result-section">
+
+        <div className="result-section-header">
+
+          <div className="result-section-number">
+            04
+          </div>
+
+          <div>
+            <span className="result-section-label">
+              INCIDENT MEMORY
+            </span>
+
+            <h4>
+              Similar historical incidents
+            </h4>
+          </div>
+
+        </div>
+
+
+        {similarIncidents.length > 0 ? (
+
+          <div className="similar-incidents">
+
+            {similarIncidents.map((item, index) => {
+
+              const historical =
+                item?.incident || item || {}
+
+              return (
+
+                <div
+                  className="similar-incident-card"
+                  key={index}
+                >
+
+                  <div className="similar-score">
+
+                    <span>
+                      SIMILARITY
+                    </span>
+
+                    <strong>
+                      {item?.similarity ?? '—'}
+                    </strong>
+
+                  </div>
+
+
+                  <div className="similar-incident-content">
+
+                    <strong>
+                      {historical.title ||
+                        'Historical incident'}
+                    </strong>
+
+                    <p>
+                      {historical.description ||
+                        'No description available.'}
+                    </p>
+
+                    <small>
+
+                      Ticket:{' '}
+                      {historical.ticket_id || 'N/A'}
+
+                      {' • '}
+
+                      Status:{' '}
+                      {historical.status || 'N/A'}
+
+                      {' • '}
+
+                      Priority:{' '}
+                      {historical.priority || 'N/A'}
+
+                    </small>
+
+                  </div>
+
+                </div>
+
+              )
+            })}
+
+          </div>
+
+        ) : (
+
+          <div className="evidence-empty">
+            No similar historical incidents were found.
+          </div>
+
+        )}
 
       </div>
 
@@ -212,7 +678,7 @@ export default function AnalysisResult({
         <div className="result-section-header">
 
           <div className="result-section-number">
-            01
+            05
           </div>
 
           <div>
@@ -220,10 +686,13 @@ export default function AnalysisResult({
               AI DIAGNOSIS
             </span>
 
-            <h4>Likely root cause</h4>
+            <h4>
+              Likely root cause
+            </h4>
           </div>
 
         </div>
+
 
         <div className="diagnosis-box">
 
@@ -250,7 +719,7 @@ export default function AnalysisResult({
         <div className="result-section-header">
 
           <div className="result-section-number">
-            02
+            06
           </div>
 
           <div>
@@ -258,10 +727,13 @@ export default function AnalysisResult({
               RESOLUTION
             </span>
 
-            <h4>Recommended troubleshooting</h4>
+            <h4>
+              Recommended troubleshooting
+            </h4>
           </div>
 
         </div>
+
 
         <div className="resolution-box">
 
@@ -319,7 +791,6 @@ export default function AnalysisResult({
                 onClick={handleResolved}
                 disabled={isUpdating}
               >
-
                 <span className="confirm-btn-icon">
                   ✓
                 </span>
@@ -327,7 +798,6 @@ export default function AnalysisResult({
                 {isUpdating
                   ? 'Updating ticket...'
                   : 'Yes, Issue Resolved'}
-
               </button>
 
 
@@ -337,7 +807,6 @@ export default function AnalysisResult({
                 onClick={handleNotResolved}
                 disabled={isUpdating}
               >
-
                 <span className="confirm-btn-icon">
                   ×
                 </span>
@@ -345,7 +814,6 @@ export default function AnalysisResult({
                 {isUpdating
                   ? 'Updating ticket...'
                   : 'No, Still Having Issue'}
-
               </button>
 
             </div>
@@ -358,7 +826,7 @@ export default function AnalysisResult({
 
 
       {/* ==================================================
-          RESOLVED CONFIRMATION
+          RESOLVED
           ================================================== */}
 
       {confirmation === 'resolved' && (
@@ -388,7 +856,7 @@ export default function AnalysisResult({
 
 
       {/* ==================================================
-          NOT RESOLVED CONFIRMATION
+          NOT RESOLVED
           ================================================== */}
 
       {confirmation === 'not-resolved' && (

@@ -14,25 +14,21 @@ import {
   ApiError,
 } from '../services/api.js'
 
+
 export default function Dashboard() {
+
   const [status, setStatus] = useState('idle')
+
   const [result, setResult] = useState(null)
+
   const [error, setError] = useState(null)
-  const [confirmationLoading, setConfirmationLoading] = useState(false)
+
+  const [confirmationLoading, setConfirmationLoading] =
+    useState(false)
 
 
   // ==================================================
   // AUTOMATIC TICKET STATUS POLLING
-  // ==================================================
-  //
-  // The backend applies the 30-second rule:
-  //
-  // 0 - 30 seconds  -> Open
-  // After 30 seconds -> In Progress
-  // User confirms    -> Closed
-  //
-  // Frontend checks the backend every 5 seconds so the
-  // displayed status updates automatically.
   // ==================================================
 
   useEffect(() => {
@@ -46,41 +42,46 @@ export default function Dashboard() {
 
     const ticketId = result.ticket_id
 
+
     async function checkTicketStatus() {
 
       try {
 
-        const latestTicket = await getTicket(ticketId)
+        const latestTicket =
+          await getTicket(ticketId)
 
-        setResult((prev) => {
 
-          if (!prev) {
-            return prev
+        setResult((previous) => {
+
+          if (!previous) {
+            return previous
           }
+
 
           return {
-            ...prev,
+            ...previous,
             ...latestTicket,
           }
+
         })
 
       } catch (err) {
 
-        // Status polling should not break the UI.
-        // The existing result remains visible.
         console.error(
           'Failed to refresh ticket status:',
           err
         )
+
       }
+
     }
 
 
-    // Check once after the result is displayed
+    // Check immediately
     checkTicketStatus()
 
 
-    // Then check every 5 seconds
+    // Then every 5 seconds
     const interval = setInterval(
       checkTicketStatus,
       5000
@@ -88,7 +89,9 @@ export default function Dashboard() {
 
 
     return () => {
+
       clearInterval(interval)
+
     }
 
   }, [status, result?.ticket_id])
@@ -101,15 +104,22 @@ export default function Dashboard() {
   async function handleAnalyze(incident) {
 
     setStatus('loading')
+
     setError(null)
+
     setResult(null)
+
 
     try {
 
-      const data = await analyzeIncident(incident)
+      const data =
+        await analyzeIncident(incident)
+
 
       setResult(data)
+
       setStatus('success')
+
 
     } catch (err) {
 
@@ -117,13 +127,18 @@ export default function Dashboard() {
         err instanceof ApiError
           ? err
           : new ApiError(
-              err.message || 'Unexpected error.',
+              err.message ||
+                'Unexpected error.',
               'api_error'
             )
 
+
       setError(apiError)
+
       setStatus('error')
+
     }
+
   }
 
 
@@ -140,25 +155,36 @@ export default function Dashboard() {
       return
     }
 
+
     setConfirmationLoading(true)
+
 
     try {
 
-      const data = await resolveTicket(
-        result.ticket_id
-      )
+      const data =
+        await resolveTicket(
+          result.ticket_id
+        )
 
-      setResult((prev) => ({
-        ...prev,
+
+      setResult((previous) => ({
+
+        ...previous,
+
         status: data.status,
+
       }))
 
+
       return data
+
 
     } finally {
 
       setConfirmationLoading(false)
+
     }
+
   }
 
 
@@ -175,25 +201,36 @@ export default function Dashboard() {
       return
     }
 
+
     setConfirmationLoading(true)
+
 
     try {
 
-      const data = await keepTicketOpen(
-        result.ticket_id
-      )
+      const data =
+        await keepTicketOpen(
+          result.ticket_id
+        )
 
-      setResult((prev) => ({
-        ...prev,
+
+      setResult((previous) => ({
+
+        ...previous,
+
         status: data.status,
+
       }))
 
+
       return data
+
 
     } finally {
 
       setConfirmationLoading(false)
+
     }
+
   }
 
 
@@ -204,18 +241,54 @@ export default function Dashboard() {
   function handleNewIncident() {
 
     setResult(null)
+
     setError(null)
+
     setStatus('idle')
+
     setConfirmationLoading(false)
+
   }
 
 
+  // ==================================================
+  // AUTONOMOUS AGENT TOOL STATUS
+  // ==================================================
+
+  const toolsUsed =
+    result?.tools_used || []
+
+
+  const agentCompleted =
+    result?.agent_status === 'completed'
+
+
+  const knowledgeUsed =
+    toolsUsed.includes(
+      'knowledge_search'
+    )
+
+
+  const similarIncidentUsed =
+    toolsUsed.includes(
+      'similar_incident_search'
+    )
+
+
+  const ticketLookupUsed =
+    toolsUsed.includes(
+      'ticket_lookup'
+    )
+
+
   return (
+
     <main className="main-content">
+
 
       {/* ==================================================
           PAGE INTRO
-      ================================================== */}
+          ================================================== */}
 
       <div className="dashboard-intro">
 
@@ -225,9 +298,11 @@ export default function Dashboard() {
             INTELLIGENT IT OPERATIONS
           </span>
 
+
           <h2>
             ResolveAI Incident Center
           </h2>
+
 
           <p>
             Describe an IT issue and let AI analyze the incident,
@@ -254,22 +329,27 @@ export default function Dashboard() {
 
       {/* ==================================================
           ERROR
-      ================================================== */}
+          ================================================== */}
 
       {status === 'error' && (
-        <ErrorBanner error={error} />
+
+        <ErrorBanner
+          error={error}
+        />
+
       )}
 
 
       {/* ==================================================
           MAIN DASHBOARD
-      ================================================== */}
+          ================================================== */}
 
       <div className="dashboard-grid">
 
+
         {/* ==================================================
             LEFT — INCIDENT INPUT
-        ================================================== */}
+            ================================================== */}
 
         <section className="card incident-card">
 
@@ -281,11 +361,13 @@ export default function Dashboard() {
                 STEP 01
               </span>
 
+
               <h3>
                 Report an incident
               </h3>
 
             </div>
+
 
             <div className="section-icon">
               +
@@ -302,6 +384,7 @@ export default function Dashboard() {
                 What went wrong?
               </h4>
 
+
               <p>
                 Provide the incident title and describe the
                 symptoms or impact. ResolveAI will handle the
@@ -313,7 +396,9 @@ export default function Dashboard() {
 
             <IncidentForm
               onAnalyze={handleAnalyze}
-              isLoading={status === 'loading'}
+              isLoading={
+                status === 'loading'
+              }
             />
 
           </div>
@@ -323,7 +408,7 @@ export default function Dashboard() {
 
         {/* ==================================================
             RIGHT — AI ANALYSIS
-        ================================================== */}
+            ================================================== */}
 
         <section className="card analysis-card">
 
@@ -334,6 +419,7 @@ export default function Dashboard() {
               <span className="card-eyebrow">
                 STEP 02
               </span>
+
 
               <h3>
                 AI incident analysis
@@ -356,9 +442,10 @@ export default function Dashboard() {
 
           <div className="card-body">
 
-            {/* ----------------------------------------------
+
+            {/* ==================================================
                 LOADING
-            ---------------------------------------------- */}
+                ================================================== */}
 
             {status === 'loading' && (
 
@@ -372,14 +459,17 @@ export default function Dashboard() {
 
                 </div>
 
+
                 <h4>
                   Analyzing incident...
                 </h4>
+
 
                 <p>
                   ResolveAI is identifying the category,
                   priority, root cause and recommended resolution.
                 </p>
+
 
                 <div className="analysis-progress">
                   <span />
@@ -390,26 +480,570 @@ export default function Dashboard() {
             )}
 
 
-            {/* ----------------------------------------------
+            {/* ==================================================
                 RESULT
-            ---------------------------------------------- */}
+                ================================================== */}
 
             {status === 'success' &&
               result && (
 
-                <AnalysisResult
-                  result={result}
-                  onResolved={()=>handleResolved()}
-                  onNotResolved={()=>handleNotResolved}
-                  confirmationLoading={confirmationLoading}
-                />
+                <>
+
+                  <AnalysisResult
+                    result={result}
+                    onResolved={handleResolved}
+                    onNotResolved={handleNotResolved}
+                    confirmationLoading={
+                      confirmationLoading
+                    }
+                  />
+
+
+                  {/* ==================================================
+                      AUTONOMOUS AGENT ACTIVITY
+                      ================================================== */}
+
+                  <div
+                    style={{
+                      marginTop: '32px',
+                      padding: '24px',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(100, 116, 139, 0.2)',
+                      background: 'rgba(248, 250, 252, 0.7)',
+                    }}
+                  >
+
+                    {/* HEADER */}
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '20px',
+                      }}
+                    >
+
+                      <div>
+
+                        <span
+                          className="card-eyebrow"
+                        >
+                          AGENT INTELLIGENCE
+                        </span>
+
+
+                        <h4
+                          style={{
+                            marginTop: '6px',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          Autonomous Agent Activity
+                        </h4>
+
+
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '14px',
+                            opacity: 0.7,
+                          }}
+                        >
+                          ResolveAI gathered evidence
+                          before generating the diagnosis.
+                        </p>
+
+                      </div>
+
+
+                      <div
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '20px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          background:
+                            agentCompleted
+                              ? '#dcfce7'
+                              : '#fef3c7',
+                          color:
+                            agentCompleted
+                              ? '#166534'
+                              : '#92400e',
+                        }}
+                      >
+                        {agentCompleted
+                          ? '✓ Completed'
+                          : 'Processing'}
+                      </div>
+
+                    </div>
+
+
+                    {/* ==================================================
+                        AGENT EXECUTION EVENTS
+                        ================================================== */}
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                          'repeat(auto-fit, minmax(160px, 1fr))',
+                        gap: '12px',
+                        marginBottom: '20px',
+                      }}
+                    >
+
+                      <div
+                        style={{
+                          padding: '14px',
+                          borderRadius: '12px',
+                          background: 'white',
+                          border:
+                            '1px solid rgba(100,116,139,0.15)',
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            opacity: 0.6,
+                            marginBottom: '6px',
+                          }}
+                        >
+                          EXECUTION EVENTS
+                        </div>
+
+
+                        <strong
+                          style={{
+                            fontSize: '24px',
+                          }}
+                        >
+                          {result.agent_steps || 0}
+                        </strong>
+
+                      </div>
+
+
+                      <div
+                        style={{
+                          padding: '14px',
+                          borderRadius: '12px',
+                          background: 'white',
+                          border:
+                            '1px solid rgba(100,116,139,0.15)',
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            opacity: 0.6,
+                            marginBottom: '6px',
+                          }}
+                        >
+                          AGENT STATUS
+                        </div>
+
+
+                        <strong>
+                          {result.agent_status ||
+                            'Unknown'}
+                        </strong>
+
+                      </div>
+
+
+                      <div
+                        style={{
+                          padding: '14px',
+                          borderRadius: '12px',
+                          background: 'white',
+                          border:
+                            '1px solid rgba(100,116,139,0.15)',
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            opacity: 0.6,
+                            marginBottom: '6px',
+                          }}
+                        >
+                          TOOLS USED
+                        </div>
+
+
+                        <strong
+                          style={{
+                            fontSize: '24px',
+                          }}
+                        >
+                          {toolsUsed.length}
+                        </strong>
+
+                      </div>
+
+                    </div>
+
+
+                    {/* ==================================================
+                        AGENT WORKFLOW
+                        ================================================== */}
+
+                    <div>
+
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          letterSpacing: '1px',
+                          opacity: 0.6,
+                          marginBottom: '12px',
+                        }}
+                      >
+                        AGENT WORKFLOW
+                      </div>
+
+
+                      {/* INCIDENT INTAKE */}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 0',
+                        }}
+                      >
+
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#dcfce7',
+                            color: '#166534',
+                            fontWeight: '700',
+                          }}
+                        >
+                          ✓
+                        </span>
+
+
+                        <span>
+                          Incident Intake
+                        </span>
+
+                      </div>
+
+
+                      {/* KNOWLEDGE SEARCH */}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 0',
+                        }}
+                      >
+
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background:
+                              knowledgeUsed
+                                ? '#dcfce7'
+                                : '#f1f5f9',
+                            color:
+                              knowledgeUsed
+                                ? '#166534'
+                                : '#64748b',
+                            fontWeight: '700',
+                          }}
+                        >
+                          {knowledgeUsed
+                            ? '✓'
+                            : '—'}
+                        </span>
+
+
+                        <span>
+                          Knowledge Retrieval
+                        </span>
+
+                      </div>
+
+
+                      {/* SIMILAR INCIDENT SEARCH */}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 0',
+                        }}
+                      >
+
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background:
+                              similarIncidentUsed
+                                ? '#dcfce7'
+                                : '#f1f5f9',
+                            color:
+                              similarIncidentUsed
+                                ? '#166534'
+                                : '#64748b',
+                            fontWeight: '700',
+                          }}
+                        >
+                          {similarIncidentUsed
+                            ? '✓'
+                            : '—'}
+                        </span>
+
+
+                        <span>
+                          Similar Incident Search
+                        </span>
+
+                      </div>
+
+
+                      {/* TICKET LOOKUP */}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 0',
+                        }}
+                      >
+
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background:
+                              ticketLookupUsed
+                                ? '#dcfce7'
+                                : '#f1f5f9',
+                            color:
+                              ticketLookupUsed
+                                ? '#166534'
+                                : '#64748b',
+                            fontWeight: '700',
+                          }}
+                        >
+                          {ticketLookupUsed
+                            ? '✓'
+                            : '—'}
+                        </span>
+
+
+                        <span>
+                          Ticket Lookup
+                        </span>
+
+                      </div>
+
+
+                      {/* AI REASONING */}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 0',
+                        }}
+                      >
+
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: agentCompleted
+                              ? '#dcfce7'
+                              : '#f1f5f9',
+                            color: agentCompleted
+                              ? '#166534'
+                              : '#64748b',
+                            fontWeight: '700',
+                          }}
+                        >
+                          {agentCompleted
+                            ? '✓'
+                            : '—'}
+                        </span>
+
+
+                        <span>
+                          AI Reasoning & Analysis
+                        </span>
+
+                      </div>
+
+
+                      {/* RESOLUTION */}
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 0',
+                        }}
+                      >
+
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: agentCompleted
+                              ? '#dcfce7'
+                              : '#f1f5f9',
+                            color: agentCompleted
+                              ? '#166534'
+                              : '#64748b',
+                            fontWeight: '700',
+                          }}
+                        >
+                          {agentCompleted
+                            ? '✓'
+                            : '—'}
+                        </span>
+
+
+                        <span>
+                          Resolution Planning
+                        </span>
+
+                      </div>
+
+                    </div>
+
+
+                    {/* ==================================================
+                        TOOLS
+                        ================================================== */}
+
+                    {toolsUsed.length > 0 && (
+
+                      <div
+                        style={{
+                          marginTop: '20px',
+                          paddingTop: '18px',
+                          borderTop:
+                            '1px solid rgba(100,116,139,0.15)',
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            letterSpacing: '1px',
+                            opacity: 0.6,
+                            marginBottom: '10px',
+                          }}
+                        >
+                          TOOLS USED
+                        </div>
+
+
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                          }}
+                        >
+
+                          {toolsUsed.map(
+                            (tool) => (
+
+                              <span
+                                key={tool}
+                                style={{
+                                  padding:
+                                    '7px 11px',
+                                  borderRadius:
+                                    '20px',
+                                  background:
+                                    '#eef2ff',
+                                  color:
+                                    '#3730a3',
+                                  fontSize:
+                                    '12px',
+                                  fontWeight:
+                                    '600',
+                                }}
+                              >
+                                {tool
+                                  .replaceAll(
+                                    '_',
+                                    ' '
+                                  )
+                                  .replace(
+                                    /\b\w/g,
+                                    (letter) =>
+                                      letter.toUpperCase()
+                                  )}
+                              </span>
+
+                            )
+                          )}
+
+                        </div>
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                </>
 
               )}
 
 
-            {/* ----------------------------------------------
+            {/* ==================================================
                 EMPTY
-            ---------------------------------------------- */}
+                ================================================== */}
 
             {status === 'idle' && (
 
@@ -419,14 +1053,17 @@ export default function Dashboard() {
                   ✦
                 </div>
 
+
                 <h4>
                   Awaiting incident
                 </h4>
+
 
                 <p>
                   Submit an incident to start AI-powered
                   diagnosis and resolution.
                 </p>
+
 
                 <div className="analysis-capabilities">
 
@@ -453,9 +1090,9 @@ export default function Dashboard() {
             )}
 
 
-            {/* ----------------------------------------------
+            {/* ==================================================
                 ERROR
-            ---------------------------------------------- */}
+                ================================================== */}
 
             {status === 'error' && (
 
@@ -465,9 +1102,11 @@ export default function Dashboard() {
                   !
                 </div>
 
+
                 <h4>
                   Analysis unavailable
                 </h4>
+
 
                 <p>
                   ResolveAI could not analyze this incident.
@@ -487,7 +1126,7 @@ export default function Dashboard() {
 
       {/* ==================================================
           SYSTEM CAPABILITIES
-      ================================================== */}
+          ================================================== */}
 
       <section className="system-overview">
 
@@ -577,5 +1216,7 @@ export default function Dashboard() {
       </section>
 
     </main>
+
   )
+
 }

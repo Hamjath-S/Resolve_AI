@@ -5,33 +5,67 @@ const EMPTY_INCIDENT = {
   description: '',
 }
 
-export default function IncidentForm({ onAnalyze, isLoading }) {
-  const [incident, setIncident] = useState(EMPTY_INCIDENT)
-  const [errors, setErrors] = useState({})
+export default function IncidentForm({
+  onAnalyze,
+  isLoading,
+}) {
+  const [incident, setIncident] =
+    useState(EMPTY_INCIDENT)
+
+  const [errors, setErrors] =
+    useState({})
+
+
+  // ==================================================
+  // UPDATE FORM FIELD
+  // ==================================================
 
   function updateField(field, value) {
-    setIncident((prev) => ({
-      ...prev,
+    setIncident((previous) => ({
+      ...previous,
       [field]: value,
     }))
 
     if (errors[field]) {
-      setErrors((prev) => ({
-        ...prev,
+      setErrors((previous) => ({
+        ...previous,
         [field]: null,
       }))
     }
   }
 
+
+  // ==================================================
+  // VALIDATION
+  // ==================================================
+
   function validate() {
     const nextErrors = {}
 
     if (!incident.title.trim()) {
-      nextErrors.title = 'Title is required.'
+      nextErrors.title =
+        'Incident title is required.'
     }
 
     if (!incident.description.trim()) {
-      nextErrors.description = 'Description is required.'
+      nextErrors.description =
+        'Incident description is required.'
+    }
+
+    if (
+      incident.title.trim() &&
+      incident.title.trim().length < 5
+    ) {
+      nextErrors.title =
+        'Please provide a more descriptive incident title.'
+    }
+
+    if (
+      incident.description.trim() &&
+      incident.description.trim().length < 15
+    ) {
+      nextErrors.description =
+        'Please provide more details about the incident.'
     }
 
     setErrors(nextErrors)
@@ -39,108 +73,327 @@ export default function IncidentForm({ onAnalyze, isLoading }) {
     return Object.keys(nextErrors).length === 0
   }
 
-  function handleSubmit(e) {
-    e.preventDefault()
 
-    if (!validate()) return
+  // ==================================================
+  // SUBMIT INCIDENT
+  // ==================================================
 
-    // Send ONLY the issue details to the backend.
-    // Ticket ID, category, priority and status
-    // are handled by the backend/AI.
+  function handleSubmit(event) {
+    event.preventDefault()
+
+    if (isLoading) {
+      return
+    }
+
+    if (!validate()) {
+      return
+    }
+
+    /*
+     * IMPORTANT
+     *
+     * Only send:
+     *
+     * title
+     * description
+     *
+     * The backend / AI agent is responsible for:
+     *
+     * - Ticket ID
+     * - Category
+     * - Priority
+     * - Root cause
+     * - Resolution
+     * - Status
+     */
+
     onAnalyze({
       title: incident.title.trim(),
       description: incident.description.trim(),
     })
   }
 
+
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form
+      className="incident-form"
+      onSubmit={handleSubmit}
+      noValidate
+    >
 
-      {/* --------------------------------------------- */}
-      {/* INCIDENT TITLE */}
-      {/* --------------------------------------------- */}
+      {/* ==================================================
+          AI ENGINE STATUS
+          ================================================== */}
 
-      <div className="field">
-        <label htmlFor="incident-title">
-          Incident title
-        </label>
+      <div className="form-status">
 
-        <input
-          id="incident-title"
-          className={errors.title ? 'field-error' : ''}
-          placeholder="e.g. Login failure on production"
-          value={incident.title}
-          onChange={(e) =>
-            updateField('title', e.target.value)
-          }
-          disabled={isLoading}
-        />
+        <span className="form-status-dot" />
 
-        {errors.title && (
-          <p className="field-error-msg">
-            {errors.title}
-          </p>
-        )}
+        <span>
+          AI diagnosis engine ready
+        </span>
+
       </div>
 
 
-      {/* --------------------------------------------- */}
-      {/* INCIDENT DESCRIPTION */}
-      {/* --------------------------------------------- */}
+      {/* ==================================================
+          INCIDENT TITLE
+          ================================================== */}
 
       <div className="field">
-        <label htmlFor="incident-description">
-          Description
-        </label>
 
-        <textarea
-          id="incident-description"
-          className={errors.description ? 'field-error' : ''}
-          placeholder="Describe symptoms, affected systems, and when it started…"
-          value={incident.description}
-          onChange={(e) =>
-            updateField('description', e.target.value)
-          }
-          disabled={isLoading}
-        />
+        <div className="field-header">
 
-        {errors.description && (
-          <p className="field-error-msg">
-            {errors.description}
-          </p>
-        )}
+          <label htmlFor="incident-title">
+            Incident title
+          </label>
+
+          <span>
+            REQUIRED
+          </span>
+
+        </div>
+
+
+        <div className="input-wrapper">
+
+          <span className="input-prefix">
+            #
+          </span>
+
+          <input
+            id="incident-title"
+            type="text"
+            className={
+              errors.title
+                ? 'field-error'
+                : ''
+            }
+            placeholder="e.g. Production users unable to login"
+            value={incident.title}
+            onChange={(event) =>
+              updateField(
+                'title',
+                event.target.value
+              )
+            }
+            disabled={isLoading}
+            autoComplete="off"
+            maxLength={120}
+          />
+
+        </div>
+
+
+        <div className="field-meta">
+
+          {errors.title ? (
+            <p className="field-error-msg">
+              {errors.title}
+            </p>
+          ) : (
+            <span>
+              Use a short, descriptive incident title.
+            </span>
+          )}
+
+          <span>
+            {incident.title.length}/120
+          </span>
+
+        </div>
+
       </div>
 
 
-      {/* --------------------------------------------- */}
-      {/* ANALYZE BUTTON */}
-      {/* --------------------------------------------- */}
+      {/* ==================================================
+          INCIDENT DESCRIPTION
+          ================================================== */}
+
+      <div className="field">
+
+        <div className="field-header">
+
+          <label htmlFor="incident-description">
+            Incident description
+          </label>
+
+          <span>
+            REQUIRED
+          </span>
+
+        </div>
+
+
+        <div className="textarea-wrapper">
+
+          <textarea
+            id="incident-description"
+            className={
+              errors.description
+                ? 'field-error'
+                : ''
+            }
+            placeholder={
+              'Describe what happened, affected users, ' +
+              'error messages, affected systems, and when the issue started…'
+            }
+            value={incident.description}
+            onChange={(event) =>
+              updateField(
+                'description',
+                event.target.value
+              )
+            }
+            disabled={isLoading}
+            maxLength={3000}
+          />
+
+          <div className="textarea-corner">
+            ✦
+          </div>
+
+        </div>
+
+
+        <div className="field-meta">
+
+          {errors.description ? (
+            <p className="field-error-msg">
+              {errors.description}
+            </p>
+          ) : (
+            <span>
+              More technical context helps the AI agent.
+            </span>
+          )}
+
+          <span>
+            {incident.description.length}/3000
+          </span>
+
+        </div>
+
+      </div>
+
+
+      {/* ==================================================
+          AI CAPABILITIES
+          ================================================== */}
+
+      <div className="form-capabilities">
+
+        <div className="capability-item">
+
+          <span className="capability-icon">
+            ◈
+          </span>
+
+          <span>
+            Classification
+          </span>
+
+        </div>
+
+
+        <div className="capability-item">
+
+          <span className="capability-icon">
+            ◉
+          </span>
+
+          <span>
+            Prioritization
+          </span>
+
+        </div>
+
+
+        <div className="capability-item">
+
+          <span className="capability-icon">
+            ✦
+          </span>
+
+          <span>
+            Root Cause
+          </span>
+
+        </div>
+
+
+        <div className="capability-item">
+
+          <span className="capability-icon">
+            ✓
+          </span>
+
+          <span>
+            Resolution
+          </span>
+
+        </div>
+
+      </div>
+
+
+      {/* ==================================================
+          ANALYZE BUTTON
+          ================================================== */}
 
       <button
         type="submit"
-        className="btn btn-primary"
+        className="btn btn-primary analyze-button"
         disabled={isLoading}
       >
-        {isLoading ? (
-          'Analyzing…'
-        ) : (
-          <>
-            <svg
-              className="btn-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M12 2l1.8 5.6L19 9.5l-5.2 1.9L12 17l-1.8-5.6L5 9.5l5.2-1.9L12 2z"
-                fill="currentColor"
-              />
-            </svg>
 
-            Analyze Incident
+        {isLoading ? (
+
+          <>
+            <span className="button-spinner" />
+
+            <span>
+              AI is analyzing incident…
+            </span>
           </>
+
+        ) : (
+
+          <>
+            <span className="analyze-icon">
+              ✦
+            </span>
+
+            <span>
+              Analyze Incident
+            </span>
+
+            <span className="button-arrow">
+              →
+            </span>
+          </>
+
         )}
+
       </button>
+
+
+      {/* ==================================================
+          SECURITY / PROCESS NOTE
+          ================================================== */}
+
+      <div className="form-security-note">
+
+        <span className="security-icon">
+          ◇
+        </span>
+
+        <span>
+          ResolveAI will analyze the incident using its
+          knowledge base and AI reasoning engine.
+        </span>
+
+      </div>
 
     </form>
   )
