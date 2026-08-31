@@ -29,11 +29,11 @@ ResolveAI also provides an AI agent execution trace showing the steps performed 
 - [Security](#security)
 - [Future Enhancements](#future-enhancements)
 - [Project Status](#project-status)
-- [License](#licence)
+- [License](#license)
 
 ---
 
-##  Overview
+## Overview
 
 Traditional IT incident handling often requires support engineers to manually investigate symptoms, search previous incidents, identify possible causes, and determine appropriate resolution steps.
 
@@ -56,7 +56,7 @@ The system can identify:
 
 ---
 
-##  Problem Statement
+## Problem Statement
 
 IT support teams frequently spend significant time investigating technical incidents.
 
@@ -75,7 +75,7 @@ The goal is to help IT support teams perform initial incident analysis faster an
 
 ---
 
-##  Objectives
+## Objectives
 
 The main objectives of ResolveAI are:
 
@@ -92,15 +92,15 @@ The main objectives of ResolveAI are:
 
 ---
 
-##  Key Features
+## Key Features
 
-###  AI-Powered Incident Analysis
+### AI-Powered Incident Analysis
 
 Users can describe an IT incident using natural language.
 
 ResolveAI uses Google Gemini to analyze the incident and generate a structured diagnostic report.
 
-###  Automatic Incident Classification
+### Automatic Incident Classification
 
 The AI determines the incident category and priority based on the provided incident details.
 
@@ -111,19 +111,19 @@ Priority levels include:
 - High
 - Critical
 
-###  Root Cause Analysis
+### Root Cause Analysis
 
 ResolveAI identifies the most likely technical root cause based on the incident description and available contextual information.
 
-###  Resolution Recommendation
+### Resolution Recommendation
 
 The system generates actionable troubleshooting and resolution recommendations.
 
-###  Knowledge Search
+### Knowledge Search
 
 The AI workflow searches the available knowledge base for relevant troubleshooting information.
 
-###  Similar Incident Search
+### Similar Incident Search
 
 ResolveAI searches for incidents with similar symptoms to provide additional context during diagnosis.
 
@@ -147,11 +147,15 @@ Root cause analysis
 Resolution generation
        ↓
 Diagnostic report completed
+```
+
+---
 
 ## System Architecture
 
 ResolveAI follows a frontend–backend architecture with an AI-powered incident analysis workflow.
 
+```text
                     ┌───────────────────────┐
                     │        USER           │
                     │                       │
@@ -207,6 +211,9 @@ ResolveAI follows a frontend–backend architecture with an AI-powered incident 
                     │ Status                │
                     │ Agent Trace           │
                     └───────────────────────┘
+```
+
+---
 
 ## Architecture Flow
 
@@ -221,10 +228,13 @@ ResolveAI follows a frontend–backend architecture with an AI-powered incident 
 9. A recommended resolution is generated.
 10. ResolveAI returns a structured diagnostic report and agent execution trace to the user.
 
+---
+
 ## AI Analysis Workflow
 
 ResolveAI follows a structured AI-assisted workflow for incident diagnosis.
 
+```text
 Incident Submission
         ↓
 Incident Analysis
@@ -242,34 +252,23 @@ Resolution Generation
 Diagnostic Report
         ↓
 Agent Execution Trace
+```
 
-1.Incident Analysis
+1. **Incident Analysis** — The system analyzes the incident title and description to understand the reported problem and its symptoms.
 
-The system analyzes the incident title and description to understand the reported problem and its symptoms.
+2. **Incident Classification** — The AI determines the appropriate incident category and priority based on the information provided.
 
-2.Incident Classification
+3. **Knowledge Search** — The system searches available troubleshooting knowledge for information relevant to the incident.
 
-The AI determines the appropriate incident category and priority based on the information provided.
+4. **Similar Incident Search** — The system searches previously analyzed incidents to identify similar problems and useful historical context.
 
-3.Knowledge Search
+5. **Root Cause Analysis** — The AI combines the incident information and available contextual information to determine the most likely root cause.
 
-The system searches available troubleshooting knowledge for information relevant to the incident.
+6. **Resolution Generation** — The AI generates recommended steps that can help troubleshoot and resolve the incident.
 
-4.Similar Incident Search
+7. **Diagnostic Report** — The final analysis is presented as a structured diagnostic report for the user.
 
-The system searches previously analyzed incidents to identify similar problems and useful historical context.
-
-5.Root Cause Analysis
-
-The AI combines the incident information and available contextual information to determine the most likely root cause.
-
-6.Resolution Generation
-
-The AI generates recommended steps that can help troubleshoot and resolve the incident.
-
-7.Diagnostic Report
-
-The final analysis is presented as a structured diagnostic report for the user.
+---
 
 ## Tech Stack
 
@@ -290,8 +289,11 @@ The final analysis is presented as a structured diagnostic report for the user.
 | Environment Management | Python Virtual Environment |
 | Version Control | Git & GitHub |
 
+---
+
 ## Project Structure
 
+```text
 Resolve AI/
 │
 ├── Backend/
@@ -369,13 +371,17 @@ Resolve AI/
 ├── README.md
 ├── requirements.txt
 └── resolveai.db
+```
+
+---
 
 ## Authentication
 
 ResolveAI uses JWT-based authentication to protect the incident analysis functionality.
 
-Authentication Flow:
+**Authentication Flow:**
 
+```text
 User
   ↓
 Login
@@ -389,8 +395,9 @@ Authenticated Session
 Protected API Access
   ↓
 Incident Analysis
+```
 
-## API Reference
+---
 
 ## API Reference
 
@@ -402,8 +409,9 @@ Incident Analysis
 | `POST` | `/tickets/{ticket_id}/resolve` | Resolve a ticket and change its status to **Closed** |
 | `POST` | `/tickets/{ticket_id}/keep-open` | Keep a ticket open and change its status to **Open** |
 
+---
 
-## Setup & Installation
+## Setup and Installation
 
 ### Prerequisites
 
@@ -417,74 +425,84 @@ From the project root, create and activate the virtual environment:
 
 ```bash
 python -m venv .venv
+```
 
 Activate the virtual environment on Windows:
 
+```bash
 .venv\Scripts\activate
+```
 
 Install the required backend packages:
 
+```bash
 python -m pip install fastapi uvicorn python-dotenv google-genai python-jose pwdlib pydantic
+```
 
-Environment Variables
+**Environment Variables**
 
-Create a .env file in the project root:
+Create a `.env` file in the project root:
 
+```env
 GEMINI_API_KEY=your_gemini_api_key
+```
 
-Replace your_gemini_api_key with your actual Google Gemini API key.
+Replace `your_gemini_api_key` with your actual Google Gemini API key.
 
-Frontend Setup
+### Frontend Setup
 
 Open a new terminal and navigate to the frontend:
 
+```bash
 cd frontend
+```
 
 Install the frontend dependencies:
 
+```bash
 npm install
+```
+
+---
 
 ## Running the Application
 
 The application requires the backend and frontend to run simultaneously.
 
-Terminal 1 — Backend
+**Terminal 1 — Backend**
 
 From the project root:
 
+```bash
 uvicorn Backend.main:app --reload
+```
 
-The backend runs at:
+The backend runs at: `http://127.0.0.1:8000`
 
-http://127.0.0.1:8000
+Interactive API documentation: `http://127.0.0.1:8000/docs`
 
-Interactive API documentation:
+**Terminal 2 — Frontend**
 
-http://127.0.0.1:8000/docs
-
-Terminal 2 — Frontend
-
-From the project root:
-
+```bash
 cd frontend
 npm run dev
+```
 
-The frontend runs at:
-
-http://localhost:5173
+The frontend runs at: `http://localhost:5173`
 
 Open the frontend URL in your browser to use Resolve AI.
 
-Project Components
+**Project Components**
 
-* Backend — FastAPI API, authentication, database and AI analysis
-* Frontend — React/Vite user interface
-* RAG — Knowledge retrieval and similar-incident search
-* SQLite — Stores users, incidents, attachments and authentication-related data
-* Gemini AI — Generates the incident analysis and diagnostic report
+- Backend — FastAPI API, authentication, database and AI analysis
+- Frontend — React/Vite user interface
+- RAG — Knowledge retrieval and similar-incident search
+- SQLite — Stores users, incidents, attachments and authentication-related data
+- Gemini AI — Generates the incident analysis and diagnostic report
 
-Application Flow: 
+**Application Flow:**
 
+```text
 Start Backend
       ↓
 Start Frontend
@@ -500,11 +518,15 @@ Analyze Incident
 View Diagnostic Report
       ↓
 Review / Resolve Incident
+```
+
+---
 
 ## Agent Execution Trace
 
 ResolveAI provides visibility into the AI analysis process through an execution trace.
 
+```text
 Incident received
        ↓
 Incident analyzed
@@ -518,6 +540,9 @@ Root cause analysis
 Resolution generation
        ↓
 Diagnostic report completed
+```
+
+---
 
 ## Security
 
@@ -525,57 +550,63 @@ ResolveAI includes authentication and protected API access.
 
 Security features include:
 
-* JWT-based authentication
-* Protected incident analysis endpoint
-* Password hashing
-* Authentication-required incident analysis
-* Environment-based configuration for sensitive credentials
+- JWT-based authentication
+- Protected incident analysis endpoint
+- Password hashing
+- Authentication-required incident analysis
+- Environment-based configuration for sensitive credentials
 
 Sensitive information such as API keys, passwords and secret keys should not be committed to the repository.
 
-A .gitignore file should be used to prevent sensitive and unnecessary files from being uploaded to GitHub.
+A `.gitignore` file should be used to prevent sensitive and unnecessary files from being uploaded to GitHub.
+
+---
 
 ## Future Enhancements
 
 Possible future enhancements include:
 
-* Real-time monitoring integration
-* Integration with enterprise incident management platforms
-* Automated log analysis
-* Automated alert ingestion
-* Advanced historical incident retrieval
-* Incident severity prediction
-* Automated remediation workflows
-* Support for additional AI models
-* Production deployment
-* Improved monitoring and observability
-* Advanced incident analytics and dashboards
+- Real-time monitoring integration
+- Integration with enterprise incident management platforms
+- Automated log analysis
+- Automated alert ingestion
+- Advanced historical incident retrieval
+- Incident severity prediction
+- Automated remediation workflows
+- Support for additional AI models
+- Production deployment
+- Improved monitoring and observability
+- Advanced incident analytics and dashboards
+
+---
 
 ## Project Status
 
 ResolveAI currently provides a working prototype of an AI-powered IT incident management and root cause analysis system.
 
-Implemented Features
+**Implemented Features**
 
-* User authentication
-* JWT-based protected API
-* Incident submission
-* AI-powered incident analysis
-* Automatic incident classification
-* Priority identification
-* Knowledge search
-* Similar incident search
-* Root cause analysis
-* Resolution recommendation
-* Diagnostic report generation
-* Unique incident ticket generation
-* Incident status management
-* AI agent execution trace
-* React/Vite Incident Command Center
-* FastAPI backend
-* Google Gemini AI integration
+- User authentication
+- JWT-based protected API
+- Incident submission
+- AI-powered incident analysis
+- Automatic incident classification
+- Priority identification
+- Knowledge search
+- Similar incident search
+- Root cause analysis
+- Resolution recommendation
+- Diagnostic report generation
+- Unique incident ticket generation
+- Incident status management
+- AI agent execution trace
+- React/Vite Incident Command Center
+- FastAPI backend
+- Google Gemini AI integration
 
 The project is currently focused on completing documentation and preparing the application for further enhancements.
+
+---
 
 ## License
 
