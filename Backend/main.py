@@ -2,18 +2,29 @@
 # RESOLVEAI FASTAPI BACKEND
 # ==================================================
 
-from fastapi import FastAPI, HTTPException
+from fastapi import (
+    FastAPI, 
+    HTTPException,
+    Depends,
+)    
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from Backend.agent import run_agent
+from Backend.auth import (
+    router as auth_router,
+    get_current_user,
+    require_admin,
+)
 
 from Backend.database import (
     create_database,
     save_incident,
     get_incident,
     update_incident_status,
-    get_all_incidents
+    get_all_incidents,
+    get_incidents_by_user,
+    get_all_users,
 )
 
 from datetime import datetime, timezone, timedelta
@@ -29,6 +40,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# ==================================================
+# AUTHENTICATION ROUTES
+# ==================================================
+
+app.include_router(
+    auth_router
+)
 
 # ==================================================
 # CORS
@@ -209,7 +227,8 @@ def get_current_status(ticket):
 
 @app.post("/analyze")
 async def analyze_incident(
-    incident: Incident
+    incident: Incident,
+    current_user: dict = Depends(get_current_user),
 ):
 
     # ==================================================
@@ -442,7 +461,9 @@ async def analyze_incident(
 
             resolution=resolution,
 
-            created_at=created_at.isoformat()
+            created_at=created_at.isoformat(),
+
+            created_by=current_user["id"]
 
         )
 
@@ -624,7 +645,8 @@ async def analyze_incident(
 
 @app.post("/tickets/{ticket_id}/resolve")
 def resolve_ticket(
-    ticket_id: str
+    ticket_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
 
     # ==================================================
@@ -645,7 +667,25 @@ def resolve_ticket(
             detail="Ticket not found"
 
         )
+    # ==================================================
+    # CHECK TICKET OWNERSHIP
+    # ==================================================
+    user_role = current_user.get(
+        "role",
+        "USER"
+    ).upper()
 
+
+    # --------------------------------------------------
+    # USER → CAN RESOLVE ONLY THEIR OWN TICKET
+    # ADMIN → CAN RESOLVE ANY TICKET
+    # --------------------------------------------------
+    if user_role != "ADMIN":
+        if ticket.get("created_by") != current_user["id"]:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to modify this ticket."
+            )
 
     # ==================================================
     # CHECK IF ALREADY CLOSED
@@ -716,7 +756,8 @@ def resolve_ticket(
 
 @app.post("/tickets/{ticket_id}/keep-open")
 def keep_ticket_open(
-    ticket_id: str
+    ticket_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
 
     # ==================================================
@@ -738,7 +779,25 @@ def keep_ticket_open(
 
         )
 
+    # ==================================================
+    # CHECK TICKET PERMISSION
+    # ==================================================
+    user_role = current_user.get(
+        "role",
+        "USER"
+    ).upper()
 
+    # --------------------------------------------------
+    # USER → CAN KEEP ONLY THEIR OWN TICKET OPEN
+    # ADMIN → CAN KEEP ANY TICKET OPEN
+    # --------------------------------------------------
+    if user_role != "ADMIN":
+        if ticket.get("created_by") != current_user["id"]:
+            raise HTTPException(
+                status_code=403,
+                detail="you do not have permission to modify this ticket."
+            )
+        
     # ==================================================
     # KEEP TICKET OPEN
     # ==================================================
@@ -780,7 +839,8 @@ def keep_ticket_open(
 
 @app.get("/tickets/{ticket_id}")
 def get_ticket(
-    ticket_id: str
+    ticket_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
 
     # ==================================================
@@ -801,7 +861,23 @@ def get_ticket(
             detail="Ticket not found"
 
         )
+    # ==================================================
+    # CHECK TICKET OWNERSHIP
+    # ==================================================
+    user_role = current_user.get(
+        "role",
+        "USER"
+    ).upper()
 
+    # ==================================================
+    # NORMAL USER -> OWN TICKETS ONLY
+    # ==================================================
+    if user_role != "ADMIN":
+        if ticket.get("created_by") != current_user["id"]:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to view this ticket."
+            )
 
     # ==================================================
     # CALCULATE CURRENT STATUS
@@ -868,7 +944,11 @@ def get_ticket(
             ticket["created_at"],
 
         "resolved_at":
-            ticket["resolved_at"]
+            ticket["resolved_at"],
+
+        "created_by":
+            ticket.get("created_by")
+            
 
     }
 
@@ -878,9 +958,22 @@ def get_ticket(
 # ==================================================
 
 @app.get("/tickets")
-def get_tickets():
+def get_tickets(
+    current_user: dict = Depends(get_current_user),
+):
+    
+    # ==================================================
+    # ADMIN → ALL TICKETS
+    # USER → OWN TICKETS ONLY
+    # ==================================================
 
-    incidents = get_all_incidents()
+    if current_user.get("role", "USER").upper() == "ADMIN":
+        incidents = get_all_incidents()
+
+    else:
+        incidents = get_incidents_by_user(
+            current_user["id"]
+        )
 
 
     # ==================================================
@@ -924,4 +1017,17 @@ def get_tickets():
         "tickets":
             incidents
 
+    }
+
+# ==================================================
+# GET ALL USERS - ADMIN ONLY
+# ==================================================
+@app.get("/users")
+def get_users(
+    current_user: dict = Depends(require_admin),
+ ):
+    users = get_all_users()
+    return {
+        "count": len(users),
+        "users": users
     }
